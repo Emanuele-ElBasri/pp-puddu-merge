@@ -100,12 +100,12 @@
             color: #666;
         }
         /*specifica colori per pulsanti attivi*/
-        .discipline-btn.active[data-discipline="italiano"] {
+        .discipline-btn.active.italiano {
             background-color: #3c78d8;
             color: white;
         }
 
-        .discipline-btn.active[data-discipline="matematica"] {
+        .discipline-btn.active.matematica {
             background-color: #dc3545;
             color: white;
         }
@@ -611,10 +611,10 @@
         </div>
         
         <div class="discipline-selector">
-            <button class="discipline-btn" data-discipline="italiano" onclick="selectDiscipline('italiano')">
+            <button class="discipline-btn italiano active" onclick="selectDiscipline('italiano')">
                 📙 ITALIANO
             </button>
-            <button class="discipline-btn" data-discipline="matematica" onclick="selectDiscipline('matematica')">
+            <button class="discipline-btn matematica" onclick="selectDiscipline('matematica')">
                 🔢 MATEMATICA
             </button>
         </div>
