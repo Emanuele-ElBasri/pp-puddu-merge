@@ -1044,8 +1044,8 @@
                 const result = {
                     Cognome: cognome,
                     Nome: nome,
-                    'Cert.': '',
-                    'Comp.Ling.': '',
+                    'Cert.': 'no',
+                    'Comp.Ling.': 'Italofono',
                     ...categoryScores,
                     email: email,
                     sezione: studentSezione
@@ -1200,7 +1200,9 @@
                         td.onclick = () => editSelectField(td, rowIndex, header, 'comp');
                     } else {
                         // Campi non editabili (punteggi)
-                        td.textContent = row[header] || '';
+                        // Mostra 0 se il valore è 0, altrimenti mostra il valore o stringa vuota
+                        const value = row[header];
+                        td.textContent = (value === 0 || value === '0') ? '0' : (value || '');
                     }
                     
                     tr.appendChild(td);
