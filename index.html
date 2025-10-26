@@ -1659,22 +1659,23 @@
                 };
                 
                 // Raccogli i punteggi in base alla disciplina
+                // Imposta 0 se il valore è vuoto o non presente
                 if (currentDiscipline === 'italiano') {
-                    if (student.Comprensione) studente.punteggi.ambito1 = student.Comprensione;
-                    if (student.Inferenze) studente.punteggi.ambito2 = student.Inferenze;
-                    if (student.Lessico) studente.punteggi.ambito3 = student.Lessico;
-                    if (student.Grammatica) studente.punteggi.ambito4 = student.Grammatica;
+                    studente.punteggi.ambito1 = parseFloat(student.Comprensione) || 0;
+                    studente.punteggi.ambito2 = parseFloat(student.Inferenze) || 0;
+                    studente.punteggi.ambito3 = parseFloat(student.Lessico) || 0;
+                    studente.punteggi.ambito4 = parseFloat(student.Grammatica) || 0;
                 } else {
-                    if (student.Numeri) studente.punteggi.ambito1 = student.Numeri;
-                    if (student['Spazio e Figure']) studente.punteggi.ambito2 = student['Spazio e Figure'];
-                    if (student['Dati e Previsioni']) studente.punteggi.ambito3 = student['Dati e Previsioni'];
-                    if (student['Relazioni e Funzioni']) studente.punteggi.ambito4 = student['Relazioni e Funzioni'];
+                    studente.punteggi.ambito1 = parseFloat(student.Numeri) || 0;
+                    studente.punteggi.ambito2 = parseFloat(student['Spazio e Figure']) || 0;
+                    studente.punteggi.ambito3 = parseFloat(student['Dati e Previsioni']) || 0;
+                    studente.punteggi.ambito4 = parseFloat(student['Relazioni e Funzioni']) || 0;
                 }
                 
-                // Calcola media
-                const scores = Object.values(studente.punteggi).map(p => parseFloat(p)).filter(p => !isNaN(p));
-                studente.media = scores.length > 0 ? 
-                    Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : '-';
+                // Calcola media su tutti e 4 gli ambiti (considerando anche gli 0)
+                const scores = Object.values(studente.punteggi);
+                const sum = scores.reduce((a, b) => a + b, 0);
+                studente.media = Math.round((sum / scores.length) * 100) / 100;
                 
                 studenti.push(studente);
             });
