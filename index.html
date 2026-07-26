@@ -1061,7 +1061,7 @@
                 const categoryScores = calculateScores(scores, currentDiscipline);
                 
                 // Parse nome e cognome
-                const [nome, cognome] = parseNomeCognome(nomeCompleto);
+                const [nome, cognome, daVerificare] = parseNomeCognome(nomeCompleto);
                 
                 const result = {
                     Cognome: cognome,
@@ -1070,7 +1070,8 @@
                     'Comp.Ling.': 'Italofono',
                     ...categoryScores,
                     email: email,
-                    sezione: studentSezione
+                    sezione: studentSezione,
+                    daVerificare: daVerificare
                 };
                 
                 results.push(result);
@@ -1544,10 +1545,7 @@
             
             // Dati studenti
             processedData.forEach((student, index) => {
-                // Calcola media
-                const scores = [];
-                let ambiti = ['', '', '', ''];
-                
+                // Calcola media                
                 const campi = (currentDiscipline === 'italiano')
                     ? ['Comprensione', 'Inferenze', 'Lessico', 'Grammatica']
                     : ['Numeri', 'Spazio e Figure', 'Dati e Previsioni', 'Relazioni e Funzioni'];
