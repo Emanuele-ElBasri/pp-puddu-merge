@@ -565,6 +565,10 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(6, 182, 64, 0.4);
         }
+
+        .riga-da-verificare {
+            background-color: #f1c329 !important;
+        }
     </style>
 </head>
 <body>
@@ -714,6 +718,7 @@
                     <li>✏️ <strong>Click</strong> sui campi evidenziati per modificarli</li>
                     <li><strong>Invio</strong> per salvare, <strong>Esc</strong> per annullare</li>
                     <li><strong>Certificati</strong> e <strong>Competenze</strong> hanno menu a tendina</li>
+                    <li>⚠️ Le righe evidenziate in <strong>giallo</strong> hanno nome o cognome ambiguo — controlla la divisione prima di trasmettere</li>
                 </ul>
             </div>
             <div id="previewContainer"></div>
@@ -809,7 +814,11 @@
             loginBtn.textContent = 'Invio in corso...';
             
             try {
-                const response = await fetch(`${APPS_SCRIPT_URL}?action=login&email=${encodeURIComponent(email)}`);
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'login', email: email })
+                });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -841,7 +850,11 @@
             verifyBtn.textContent = 'Verifica...';
             
             try {
-                const response = await fetch(`${APPS_SCRIPT_URL}?action=verify&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`);
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({ action: 'verify', email: email, code: code })
+                });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -1094,13 +1107,15 @@
                     } else if (key.startsWith('i')) {
                         I += valore;
                         IT++;
+                    } else {
+                        console.warn('ID domanda non classificato:', chiave);
                     }
                 }
                 
-                scores.Comprensione = CT > 0 ? Math.round((C / CT) * 100 * 100) / 100 : 0;
-                scores.Inferenze = IT > 0 ? Math.round((I / IT) * 100 * 100) / 100 : 0;
-                scores.Lessico = LT > 0 ? Math.round((L / LT) * 100 * 100) / 100 : 0;
-                scores.Grammatica = GT > 0 ? Math.round((G / GT) * 100 * 100) / 100 : 0;
+                scores.Comprensione = CT > 0 ? Math.round((C / CT) * 100 * 100) / 100 : null;
+                scores.Inferenze = IT > 0 ? Math.round((I / IT) * 100 * 100) / 100 : null;
+                scores.Lessico = LT > 0 ? Math.round((L / LT) * 100 * 100) / 100 : null;
+                scores.Grammatica = GT > 0 ? Math.round((G / GT) * 100 * 100) / 100 : null;
                 
             } else if (disciplina === 'matematica') {
                 let N = 0, F = 0, D = 0, R = 0;
@@ -1120,34 +1135,79 @@
                     } else if (key.startsWith('r')) {
                         R += valore;
                         RT++;
+                    } else {
+                        console.warn('ID domanda non classificato:', chiave);
                     }
                 }
                 
-                scores.Numeri = NT > 0 ? Math.round((N / NT) * 100 * 100) / 100 : 0;
-                scores['Spazio e Figure'] = FT > 0 ? Math.round((F / FT) * 100 * 100) / 100 : 0;
-                scores['Dati e Previsioni'] = DT > 0 ? Math.round((D / DT) * 100 * 100) / 100 : 0;
-                scores['Relazioni e Funzioni'] = RT > 0 ? Math.round((R / RT) * 100 * 100) / 100 : 0;
+                scores.Numeri = NT > 0 ? Math.round((N / NT) * 100 * 100) / 100 : null;
+                scores['Spazio e Figure'] = FT > 0 ? Math.round((F / FT) * 100 * 100) / 100 : null;
+                scores['Dati e Previsioni'] = DT > 0 ? Math.round((D / DT) * 100 * 100) / 100 : null;
+                scores['Relazioni e Funzioni'] = RT > 0 ? Math.round((R / RT) * 100 * 100) / 100 : null;
             }
             
             return scores;
         }
         
-        function parseNomeCognome(nomeCompleto) {
-            if (!nomeCompleto) return ['', ''];
-            const parts = nomeCompleto.toString().split(' ');
-            if (parts.length > 1) {
-                const nome = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-                const cognome = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1).toLowerCase();
-                return [nome, cognome];
-            } else {
-                const nome = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-                return [nome, ''];
-            }
+        function capitalizzaNome(testo) {
+            if (!testo) return '';
+            return testo
+                .toString()
+                .trim()
+                .replace(/\s+/g, ' ')          // normalizza spazi multipli
+                .toLowerCase()
+                .replace(/(^|[\s'’\-])(\p{Ll})/gu, (m, sep, lettera) => sep + lettera.toUpperCase());
         }
-        
+
+        const PARTICELLE = ['de', 'del', 'della', 'dello', 'dei', 'degli', 'delle',
+                    'di', 'da', 'dal', 'dalla', 'lo', 'la', 'li', 'le',
+                    'van', 'von', 'mc', 'mac', 'san', 'santa'];
+
+        function parseNomeCognome(nomeCompleto) {
+            if (!nomeCompleto) return ['', '', false];
+            const parts = capitalizzaNome(nomeCompleto).split(' ');
+            if (parts.length === 1) return [parts[0], '', false];
+            if (parts.length === 2) return [parts[0], parts[1], false];
+
+            // 3+ parole: se la seconda è una particella, il cognome inizia da lì
+            if (PARTICELLE.includes(parts[1].toLowerCase())) {
+                return [parts[0], parts.slice(1).join(' '), false];
+            }
+
+            // 3+ parole senza particella: genuinamente ambiguo → da verificare
+            return [parts[0], parts.slice(1).join(' '), true];
+        }
+
+        function hasScore(value) {
+            return value !== null && value !== undefined && value !== '';
+        }
+
+        function buildEditableCell(td, value, icon, hint) {
+            td.textContent = '';
+
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'edit-icons';
+            iconDiv.textContent = icon;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'cell-content';
+            contentDiv.textContent = value;
+
+            const hintDiv = document.createElement('div');
+            hintDiv.className = 'editable-hint';
+            hintDiv.textContent = hint;
+
+            td.appendChild(iconDiv);
+            td.appendChild(contentDiv);
+            td.appendChild(hintDiv);
+        }
         function displayResults(data) {
             const container = document.getElementById('previewContainer');
             
+            if (row.daVerificare) {
+                tr.classList.add('riga-da-verificare');
+            }
+
             if (data.length === 0) {
                 container.innerHTML = '<p>Nessun risultato da visualizzare</p>';
                 return;
@@ -1176,33 +1236,21 @@
                     // Campi editabili
                     if (header === 'Cognome' || header === 'Nome') {
                         td.className = 'editable-cell';
-                        td.innerHTML = `
-                            <div class="edit-icons">✏️</div>
-                            <div class="cell-content">${row[header] || ''}</div>
-                            <div class="editable-hint">Clicca per modificare</div>
-                        `;
+                        buildEditableCell(td, row[header] || '', '✏️', 'Clicca per modificare');
                         td.onclick = () => editTextField(td, rowIndex, header);
                     } else if (header === 'Cert.') {
                         td.className = 'editable-cell';
-                        td.innerHTML = `
-                            <div class="edit-icons">📋</div>
-                            <div class="cell-content">${row[header] || '-'}</div>
-                            <div class="editable-hint">Clicca per selezionare</div>
-                        `;
+                        buildEditableCell(td, row[header] || '-', '📋', 'Clicca per selezionare');
                         td.onclick = () => editSelectField(td, rowIndex, header, 'cert');
                     } else if (header === 'Comp.Ling.') {
                         td.className = 'editable-cell';
-                        td.innerHTML = `
-                            <div class="edit-icons">🌐</div>
-                            <div class="cell-content">${row[header] || '-'}</div>
-                            <div class="editable-hint">Clicca per selezionare</div>
-                        `;
+                        buildEditableCell(td, row[header] || '-', '🌐', 'Clicca per selezionare');
                         td.onclick = () => editSelectField(td, rowIndex, header, 'comp');
                     } else {
                         // Campi non editabili (punteggi)
                         // Mostra 0 se il valore è 0, altrimenti mostra il valore o stringa vuota
                         const value = row[header];
-                        td.textContent = (value === 0 || value === '0') ? '0' : (value || '');
+                        td.textContent = hasScore(value) ? String(value) : '—';
                     }
                     
                     tr.appendChild(td);
@@ -1238,7 +1286,7 @@
             
             // Funzione per salvare
             const saveValue = () => {
-                const newValue = input.value.trim();
+                const newValue = capitalizzaNome(input.value);
                 
                 // Aggiorna i dati
                 if (processedData[rowIndex]) {
@@ -1247,11 +1295,7 @@
                 
                 // Ripristina la cella
                 cell.classList.remove('editing');
-                cell.innerHTML = `
-                    <div class="edit-icons">✏️</div>
-                    <div class="cell-content">${newValue}</div>
-                    <div class="editable-hint">Clicca per modificare</div>
-                `;
+                buildEditableCell(cell, newValue, '✏️', 'Clicca per modificare');
                 cell.onclick = () => editTextField(cell, rowIndex, fieldName);
             };
             
@@ -1263,11 +1307,7 @@
                 } else if (e.key === 'Escape') {
                     // Annulla editing
                     cell.classList.remove('editing');
-                    cell.innerHTML = `
-                        <div class="edit-icons">✏️</div>
-                        <div class="cell-content">${currentValue}</div>
-                        <div class="editable-hint">Clicca per modificare</div>
-                    `;
+                    buildEditableCell(cell, currentValue, '✏️', 'Clicca per modificare');
                     cell.onclick = () => editTextField(cell, rowIndex, fieldName);
                 }
             };
@@ -1333,11 +1373,7 @@
                 // Ripristina la cella
                 cell.classList.remove('editing');
                 const icon = type === 'cert' ? '📑' : '📑';
-                cell.innerHTML = `
-                    <div class="edit-icons">${icon}</div>
-                    <div class="cell-content">${displayValue}</div>
-                    <div class="editable-hint">Clicca per selezionare</div>
-                `;
+                buildEditableCell(cell, displayValue, icon, 'Clicca per selezionare');
                 cell.onclick = () => editSelectField(cell, rowIndex, fieldName, type);
             };
             
@@ -1350,11 +1386,7 @@
                     cell.classList.remove('editing');
                     const icon = type === 'cert' ? '📑' : '📑';
                     const displayValue = currentValue || '-';
-                    cell.innerHTML = `
-                        <div class="edit-icons">${icon}</div>
-                        <div class="cell-content">${displayValue}</div>
-                        <div class="editable-hint">Clicca per selezionare</div>
-                    `;
+                    buildEditableCell(cell, displayValue, icon, 'Clicca per selezionare');
                     cell.onclick = () => editSelectField(cell, rowIndex, fieldName, type);
                 }
             };
@@ -1447,37 +1479,23 @@
                 ];
                 
                 // Aggiungi punteggi specifici per disciplina
-                if (currentDiscipline === 'italiano') {
-                    studentRow.push(
-                        student.Comprensione || '',
-                        student.Inferenze || '',
-                        student.Lessico || '',
-                        student.Grammatica || ''
-                    );
-                } else {
-                    studentRow.push(
-                        student.Numeri || '',
-                        student['Spazio e Figure'] || '',
-                        student['Dati e Previsioni'] || '',
-                        student['Relazioni e Funzioni'] || ''
-                    );
-                }
-                
-                // Calcola media
+                const campi = (currentDiscipline === 'italiano')
+                    ? ['Comprensione', 'Inferenze', 'Lessico', 'Grammatica']
+                    : ['Numeri', 'Spazio e Figure', 'Dati e Previsioni', 'Relazioni e Funzioni'];
+
                 const scores = [];
-                if (currentDiscipline === 'italiano') {
-                    if (student.Comprensione) scores.push(parseFloat(student.Comprensione));
-                    if (student.Inferenze) scores.push(parseFloat(student.Inferenze));
-                    if (student.Lessico) scores.push(parseFloat(student.Lessico));
-                    if (student.Grammatica) scores.push(parseFloat(student.Grammatica));
-                } else {
-                    if (student.Numeri) scores.push(parseFloat(student.Numeri));
-                    if (student['Spazio e Figure']) scores.push(parseFloat(student['Spazio e Figure']));
-                    if (student['Dati e Previsioni']) scores.push(parseFloat(student['Dati e Previsioni']));
-                    if (student['Relazioni e Funzioni']) scores.push(parseFloat(student['Relazioni e Funzioni']));
-                }
-                
-                const media = scores.length > 0 ? 
+                campi.forEach(campo => {
+                    const raw = student[campo];
+                    if (hasScore(raw)) {
+                        const num = parseFloat(raw);
+                        studentRow.push(num);
+                        scores.push(num);
+                    } else {
+                        studentRow.push('');
+                    }
+                });
+
+                const media = scores.length > 0 ?
                     Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : '';
                 
                 studentRow.push(media, ''); // Media e Note
@@ -1519,19 +1537,23 @@
                 const scores = [];
                 let ambiti = ['', '', '', ''];
                 
-                if (currentDiscipline === 'italiano') {
-                    if (student.Comprensione) { scores.push(parseFloat(student.Comprensione)); ambiti[0] = student.Comprensione; }
-                    if (student.Inferenze) { scores.push(parseFloat(student.Inferenze)); ambiti[1] = student.Inferenze; }
-                    if (student.Lessico) { scores.push(parseFloat(student.Lessico)); ambiti[2] = student.Lessico; }
-                    if (student.Grammatica) { scores.push(parseFloat(student.Grammatica)); ambiti[3] = student.Grammatica; }
-                } else {
-                    if (student.Numeri) { scores.push(parseFloat(student.Numeri)); ambiti[0] = student.Numeri; }
-                    if (student['Spazio e Figure']) { scores.push(parseFloat(student['Spazio e Figure'])); ambiti[1] = student['Spazio e Figure']; }
-                    if (student['Dati e Previsioni']) { scores.push(parseFloat(student['Dati e Previsioni'])); ambiti[2] = student['Dati e Previsioni']; }
-                    if (student['Relazioni e Funzioni']) { scores.push(parseFloat(student['Relazioni e Funzioni'])); ambiti[3] = student['Relazioni e Funzioni']; }
-                }
-                
-                const media = scores.length > 0 ? 
+                const campi = (currentDiscipline === 'italiano')
+                    ? ['Comprensione', 'Inferenze', 'Lessico', 'Grammatica']
+                    : ['Numeri', 'Spazio e Figure', 'Dati e Previsioni', 'Relazioni e Funzioni'];
+
+                const scores = [];
+                let ambiti = ['', '', '', ''];
+
+                campi.forEach((campo, i) => {
+                    const raw = student[campo];
+                    if (hasScore(raw)) {
+                        const num = parseFloat(raw);
+                        scores.push(num);
+                        ambiti[i] = num;
+                    }
+                });
+
+                const media = scores.length > 0 ?
                     Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : '';
                 
                 const studentRow = [
@@ -1563,23 +1585,20 @@
             return tabelleData;
         }
         
+        let isTransmitting = false;   // ← fuori dalla funzione, a livello di script
+
         async function transmitData() {
-            if (!currentSession) {
-                alert('Sessione scaduta. Effettua di nuovo il login.');
-                logout();
-                return;
-            }
-            
-            if (!processedData || processedData.length === 0) {
-                alert('Non ci sono dati da trasmettere. Elabora prima i file.');
-                return;
-            }
-            
+            if (isTransmitting) return;
+
+            if (!currentSession) { /* ... invariato ... */ }
+            if (!processedData || processedData.length === 0) { /* ... invariato ... */ }
+
+            isTransmitting = true;
             const transmitBtn = document.getElementById('transmitBtn');
             const originalText = transmitBtn.textContent;
             transmitBtn.disabled = true;
             transmitBtn.textContent = 'Trasmissione...';
-            
+
             try {
                 const tabulationData = generateTabulationData();
                 
@@ -1614,10 +1633,11 @@
                 
             } catch (error) {
                 alert('❌ Errore nella trasmissione: ' + error.message);
+            } finally {
+                isTransmitting = false;
+                transmitBtn.disabled = false;
+                transmitBtn.textContent = originalText;
             }
-            
-            transmitBtn.disabled = false;
-            transmitBtn.textContent = originalText;
         }
 
         function saveExcel() {
@@ -1660,24 +1680,21 @@
                     punteggi: {}
                 };
                 
-                // Raccogli i punteggi in base alla disciplina
-                // Imposta 0 se il valore è vuoto o non presente
-                if (currentDiscipline === 'italiano') {
-                    studente.punteggi.ambito1 = parseFloat(student.Comprensione) || 0;
-                    studente.punteggi.ambito2 = parseFloat(student.Inferenze) || 0;
-                    studente.punteggi.ambito3 = parseFloat(student.Lessico) || 0;
-                    studente.punteggi.ambito4 = parseFloat(student.Grammatica) || 0;
-                } else {
-                    studente.punteggi.ambito1 = parseFloat(student.Numeri) || 0;
-                    studente.punteggi.ambito2 = parseFloat(student['Spazio e Figure']) || 0;
-                    studente.punteggi.ambito3 = parseFloat(student['Dati e Previsioni']) || 0;
-                    studente.punteggi.ambito4 = parseFloat(student['Relazioni e Funzioni']) || 0;
-                }
-                
-                // Calcola media su tutti e 4 gli ambiti (considerando anche gli 0)
-                const scores = Object.values(studente.punteggi);
-                const sum = scores.reduce((a, b) => a + b, 0);
-                studente.media = Math.round((sum / scores.length) * 100) / 100;
+                // Preserva la distinzione tra 0 e ambito non testato
+                const campi = (currentDiscipline === 'italiano')
+                    ? ['Comprensione', 'Inferenze', 'Lessico', 'Grammatica']
+                    : ['Numeri', 'Spazio e Figure', 'Dati e Previsioni', 'Relazioni e Funzioni'];
+
+                campi.forEach((campo, i) => {
+                    const raw = student[campo];
+                    studente.punteggi[`ambito${i + 1}`] = hasScore(raw) ? parseFloat(raw) : null;
+                });
+
+                // Media solo sugli ambiti effettivamente presenti
+                const presenti = Object.values(studente.punteggi).filter(v => v !== null);
+                studente.media = presenti.length > 0
+                    ? Math.round((presenti.reduce((a, b) => a + b, 0) / presenti.length) * 100) / 100
+                    : null;
                 
                 studenti.push(studente);
             });
