@@ -727,7 +727,7 @@
                     <li>✏️ <strong>Click</strong> sui campi evidenziati per modificarli</li>
                     <li><strong>Invio</strong> per salvare, <strong>Esc</strong> per annullare</li>
                     <li><strong>Certificati</strong> e <strong>Competenze</strong> hanno menu a tendina</li>
-                    <li>⚠️ Le righe evidenziate in <strong>giallo</strong> hanno nome o cognome ambiguo — controlla la divisione prima di trasmettere</li>
+                    <li id="hintAmbiguita" style="display: none;">⚠️ Le righe evidenziate in <strong>giallo</strong> hanno nome o cognome ambiguo — controlla la divisione prima di trasmettere</li>
                 </ul>
             </div>
             <div id="previewContainer"></div>
@@ -1268,6 +1268,8 @@
             });
             
             container.innerHTML = '';
+            const ambigue = data.some(r => r.daVerificare);
+            document.getElementById('hintAmbiguita').style.display = ambigue ? 'list-item' : 'none';
             container.appendChild(table);
         }
         
